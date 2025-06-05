@@ -13,8 +13,9 @@ import MainLayout from 'src/layouts/MainLayout/MainLayout'
 const Routes = () => {
   return (
     <Router>
-      <Route path="/planner" page={PlannerPage} name="planner" />
       <Set wrap={MainLayout}>
+        <Route path="/grocery-list" page={GroceryListPage} name="groceryList" />
+        <Route path="/planner" page={PlannerPage} name="planner" />
         <Route path="/" page={HomePage} name="home" />
       </Set>
       <Route notfound page={NotFoundPage} />
