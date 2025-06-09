@@ -13,17 +13,7 @@ import {
 } from '@redwoodjs/forms'
 import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
-
-const CATEGORIES = [
-  'Produce',
-  'Dairy',
-  'Meat & Seafood',
-  'Pantry',
-  'Frozen',
-  'Beverages',
-  'Condiments/Spices',
-  'Other',
-] as const
+import { CATEGORIES, type Category } from 'src/lib/categories'
 
 const PANTRY_ITEM_STATUSES: PantryItemStatus[] = ['InStock', 'OutOfStock']
 

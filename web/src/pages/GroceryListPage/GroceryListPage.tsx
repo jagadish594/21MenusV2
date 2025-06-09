@@ -20,20 +20,7 @@ import { MetaTags, useQuery, useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY as PANTRY_ITEMS_QUERY } from 'src/components/PantryItemsCell/PantryItemsCell' // For refetching pantry
-
-// Define CATEGORIES and Category locally as a workaround
-const CATEGORIES = [
-  'Produce',
-  'Dairy',
-  'Meat & Seafood',
-  'Pantry',
-  'Frozen',
-  'Beverages',
-  'Condiments/Spices',
-  'Other',
-] as const
-
-export type Category = (typeof CATEGORIES)[number]
+import { CATEGORIES, type Category } from 'src/lib/categories'
 
 type GroceryItem = GraphQLGroceryListItem
 

@@ -16,20 +16,7 @@ import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY as PANTRY_ITEMS_QUERY } from 'src/components/PantryItemsCell/PantryItemsCell' // Import the query for refetching
 import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage' // Import the grocery list query
-
-// Re-using categories from GroceryListPage
-const CATEGORIES = [
-  'Produce',
-  'Dairy',
-  'Meat & Seafood',
-  'Pantry',
-  'Frozen',
-  'Beverages',
-  'Condiments/Spices',
-  'Other',
-] as const
-
-type Category = (typeof CATEGORIES)[number]
+import { CATEGORIES, type Category } from 'src/lib/categories'
 
 const CREATE_PANTRY_ITEM_MUTATION = gql`
   mutation CreatePantryItemMutation($input: CreatePantryItemInput!) {

@@ -1,5 +1,5 @@
 // PantryItemsCell.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 import {
   DndContext,
@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { PantryItemStatus } from 'types/graphql' // Import PantryItemStatus as a value
 import type {
   DeletePantryItemMutation,
   DeletePantryItemMutationVariables,
@@ -27,10 +28,10 @@ import type {
   PantryItemsQueryVariables,
   UpdatePantryItemOrdersMutation,
   UpdatePantryItemOrdersMutationVariables,
-  UpdatePantryItemOrderInput, // Added this type
-  PantryItemStatus,
-  AddPantryItemToGroceryInput, // For the new mutation
-  AddPantryItemsToGroceryListMutation, // For the new mutation operation result type
+  UpdatePantryItemOrderInput,
+  AddPantryItemToGroceryInput,
+  AddPantryItemsToGroceryListMutation,
+  GroceryListItemsQuery, // Consolidated here
 } from 'types/graphql'
 
 import { useMutation } from '@redwoodjs/web'
@@ -41,11 +42,39 @@ import type {
 } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
+// Helper component to highlight matched text
+interface HighlightMatchProps {
+  text: string
+  highlight: string
+}
+
+const HighlightMatch: React.FC<HighlightMatchProps> = ({ text, highlight }) => {
+  if (!highlight.trim()) {
+    return <>{text}</>
+  }
+  const regex = new RegExp(
+    `(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`,
+    'gi'
+  )
+  const parts = text.split(regex)
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        regex.test(part) ? (
+          <strong key={index} className="bg-yellow-200">
+            {part}
+          </strong>
+        ) : (
+          part
+        )
+      )}
+    </>
+  )
+}
+
 import EditPantryItemForm from 'src/components/EditPantryItemForm'
 import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage'
-import type { GroceryListItemsQuery } from 'types/graphql'
-
-
 export const QUERY: TypedDocumentNode<
   PantryItemsQuery,
   PantryItemsQueryVariables
@@ -123,6 +152,7 @@ const ADD_PANTRY_ITEMS_TO_GROCERY_LIST_MUTATION: TypedDocumentNode<
 `
 
 interface SortablePantryItemProps {
+  searchTerm?: string
   isSelected: boolean
   onToggleSelectItem: (itemId: number) => void
   item: PantryItem
@@ -144,6 +174,7 @@ const SortablePantryItem = ({
   isOverlay,
   isSelected,
   onToggleSelectItem,
+  searchTerm,
 }: SortablePantryItemProps) => {
   const {
     attributes,
@@ -199,7 +230,7 @@ const SortablePantryItem = ({
           />
           <div className="flex flex-grow flex-col">
             <div className="flex-1 truncate">
-              {item.name} <span className="text-xs text-gray-500">({item.status})</span>
+              <HighlightMatch text={item.name} highlight={searchTerm || ''} /> <span className="text-xs text-gray-500">({item.status})</span>
             </div>
             {item.quantity && (
               <span className="text-sm text-gray-600">
@@ -207,7 +238,9 @@ const SortablePantryItem = ({
               </span>
             )}
             {item.notes && (
-              <span className="text-sm text-gray-500">Notes: {item.notes}</span>
+              <span className="text-sm text-gray-500">
+                Notes: <HighlightMatch text={item.notes} highlight={searchTerm || ''} />
+              </span>
             )}
           </div>
           <div className="flex-shrink-0 space-x-2">
@@ -235,6 +268,7 @@ const SortablePantryItem = ({
 }
 
 interface DroppableCategoryProps {
+  searchTerm?: string
   selectedItemIds: Set<number>
   onToggleSelectItem: (itemId: number) => void
   id: string
@@ -258,6 +292,7 @@ const DroppableCategory = ({
   onCancelEdit,
   selectedItemIds,
   onToggleSelectItem,
+  searchTerm,
 }: DroppableCategoryProps) => {
   const { isOver, setNodeRef } = useDroppable({
     id,
@@ -289,6 +324,7 @@ const DroppableCategory = ({
               onCancelEdit={onCancelEdit}
               isSelected={selectedItemIds.has(item.id)}
               onToggleSelectItem={onToggleSelectItem}
+              searchTerm={searchTerm}
             />
           ))}
           {items.length === 0 && (
@@ -305,6 +341,8 @@ const DroppableCategory = ({
 export const Success = ({
   pantryItems: initialPantryItems,
 }: CellSuccessProps<PantryItemsQuery, PantryItemsQueryVariables>) => {
+  const [inputValue, setInputValue] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingItem, setEditingItem] = useState<PantryItem | null>(null)
   const [localPantryItems, setLocalPantryItems] =
     useState<PantryItem[]>(() => initialPantryItems.map((item) => ({
@@ -313,7 +351,33 @@ export const Success = ({
       status: item.status as PantryItemStatus,
     })))
   const [activeDragItem, setActiveDragItem] = useState<PantryItem | null>(null)
+
+  const filteredPantryItems = useMemo(() => {
+    if (!searchTerm) {
+      return localPantryItems
+    }
+    return localPantryItems.filter((item) => {
+      const term = searchTerm.toLowerCase();
+      const nameMatch = item.name.toLowerCase().includes(term);
+      const notesMatch = item.notes?.toLowerCase().includes(term) ?? false;
+      return nameMatch || notesMatch;
+    })
+  }, [localPantryItems, searchTerm])
   const [selectedItemIds, setSelectedItemIds] = useState(new Set<number>())
+
+  const hasSelectedInStockItem = useMemo(() => {
+    if (selectedItemIds.size === 0) {
+      return false
+    }
+    for (const id of selectedItemIds) {
+      const selectedItem = localPantryItems.find((item) => item.id === id)
+      if (selectedItem && selectedItem.status === "InStock") {
+        return true
+      }
+    }
+    return false
+  }, [selectedItemIds, localPantryItems])
+
 
   const [addPantryItemsToGrocery, { loading: addItemsLoading }] = useMutation<
     AddPantryItemsToGroceryListMutation,
@@ -336,7 +400,7 @@ export const Success = ({
       let existingCacheData = null;
       try {
         existingCacheData = cache.readQuery<GroceryListItemsQuery>(queryOptions);
-      } catch (e) {
+      } catch {
         // This is fine, means the query isn't in the cache yet
         console.log('[PantryItemsCell] GET_GROCERY_LIST_ITEMS_QUERY not found in cache (expected if GroceryListPage not visited).');
       }
@@ -466,6 +530,16 @@ export const Success = ({
       status: item.status as PantryItemStatus,
     })))
   }, [initialPantryItems])
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchTerm(inputValue);
+    }, 300); // 300ms debounce delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [inputValue]);
 
   const [deletePantryItem] = useMutation<
     DeletePantryItemMutation,
@@ -696,7 +770,7 @@ export const Success = ({
     }
   }
 
-  const groupedItems = localPantryItems.reduce(
+  const groupedItems = filteredPantryItems.reduce(
     (acc, item) => {
       const categoryKey = item.category || 'Uncategorized'
       if (!acc[categoryKey]) {
@@ -720,29 +794,49 @@ export const Success = ({
     categories.push('Uncategorized')
   }
 
-  const countSelectedOutOfStock = localPantryItems.filter(
+  const countSelectedOutOfStock = filteredPantryItems.filter(
     (item) => selectedItemIds.has(item.id) && item.status === 'OutOfStock'
   ).length
 
   return (
     <>
-      <div className="my-4 text-center">
-        <button
-          type="button"
-          onClick={handleAddSelectedToGroceryList}
-          disabled={selectedItemIds.size === 0 || countSelectedOutOfStock === 0 || addItemsLoading}
-          className="rounded bg-green-500 px-6 py-2 text-lg font-semibold text-white shadow hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
-        >
-          {addItemsLoading ? 'Adding...' : `Add ${countSelectedOutOfStock} Selected 'Out of Stock' to Grocery List`}
-        </button>
-      </div>
-      <DndContext
-      sensors={sensors}
+      <div className="mb-4 px-1">
+        <input
+          type="text"
+          placeholder="Search pantry items..."
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+      className="rw-input w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-blue-500"
+    />
+  </div>
+  <div className="my-4 text-center">
+    {/* Conditional message about 'In Stock' items */}
+    {selectedItemIds.size > 0 && hasSelectedInStockItem && (
+      <p className="my-2 text-sm text-orange-600">
+        Note: Only &apos;Out of Stock&apos; items will be added to the Grocery List.
+      </p>
+    )}
+    <button
+      type="button"
+      onClick={handleAddSelectedToGroceryList} 
+      disabled={selectedItemIds.size === 0 || countSelectedOutOfStock === 0 || addItemsLoading}
+      className="rounded bg-green-500 px-6 py-2 text-lg font-semibold text-white shadow hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
+    >
+      {addItemsLoading ? 'Adding...' : `Add ${countSelectedOutOfStock} Selected 'Out of Stock' to Grocery List`}
+    </button>
+  </div>
+  <DndContext
+    sensors={sensors}
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="space-y-6">
+      {searchTerm && filteredPantryItems.length === 0 ? (
+        <div className="py-4 text-center italic text-gray-500">
+          No items found matching &apos;{searchTerm}&apos;.
+        </div>
+      ) : (
+        <div className="space-y-6">
         {categories.map((categoryKey) => (
           <DroppableCategory
             key={categoryKey}
@@ -754,11 +848,13 @@ export const Success = ({
             onDeleteClick={onDeleteClick}
             onSaveEdit={handleSaveEdit}
             onCancelEdit={handleCancelEdit}
-                  selectedItemIds={selectedItemIds}
-                  onToggleSelectItem={handleToggleSelectItem}
+            selectedItemIds={selectedItemIds}
+            onToggleSelectItem={handleToggleSelectItem}
+            searchTerm={searchTerm}
           />
         ))}
-      </div>
+        </div>
+      )}
       <DragOverlay>
         {activeDragItem ? (
           <SortablePantryItem
