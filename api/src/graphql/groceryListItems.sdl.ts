@@ -9,7 +9,8 @@ export const schema = gql`
   }
 
   type Query {
-    groceryListItems: [GroceryListItem!]! @requireAuth
+        groceryListItems: [GroceryListItem!]! @requireAuth
+    groceryListItem(id: Int!): GroceryListItem @requireAuth
   }
 
   input CreateGroceryListItemInput {
@@ -30,11 +31,22 @@ export const schema = gql`
     purchased: Boolean
   }
 
+    type CreateMultipleGroceryListItemsResult {
+    addedCount: Int!
+    skippedCount: Int!
+    addedItems: [GroceryListItem!]
+    skippedItems: [String!]
+  }
+
   type AddPantryItemsToGroceryResult {
     addedCount: Int!
     skippedCount: Int!
     addedItems: [GroceryListItem!]!
     skippedItems: [String!]!
+  }
+
+  type BatchDeleteResult {
+    count: Int!
   }
 
   type Mutation {
@@ -45,8 +57,13 @@ export const schema = gql`
       input: UpdateGroceryListItemInput!
     ): GroceryListItem! @requireAuth
     deleteGroceryListItem(id: Int!): GroceryListItem! @requireAuth
+        createMultipleGroceryListItems(
+      inputs: [CreateGroceryListItemInput!]!
+    ): CreateMultipleGroceryListItemsResult! @requireAuth
+
     addPantryItemsToGroceryList(
       inputs: [AddPantryItemToGroceryInput!]!
     ): AddPantryItemsToGroceryResult! @requireAuth
+    deleteGroceryListItemsByCategory(category: String!): BatchDeleteResult! @requireAuth
   }
 `

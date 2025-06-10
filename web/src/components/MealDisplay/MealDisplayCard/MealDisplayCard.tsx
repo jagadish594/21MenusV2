@@ -1,7 +1,16 @@
-// c:\myProjects\windsurf-test\21menus\web\src\components\MealDisplay\MealDisplayCard\MealDisplayCard.tsx
 import React, { useState, useEffect } from 'react'
 
+import gql from 'graphql-tag'
+import type {
+  CreateMultipleGroceryListItemsMutation,
+  CreateMultipleGroceryListItemsMutationVariables,
+} from 'types/graphql'
+
 import { navigate, routes } from '@redwoodjs/router'
+import { useMutation } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+
+import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage'
 
 // Define categories consistent with GroceryListPage
 export type Category =
@@ -162,24 +171,69 @@ interface MealDetails {
   nutrients: NutrientInfo
 }
 
+// Define the mutation (can also be imported if centralized)
+const CREATE_MULTIPLE_GROCERY_LIST_ITEMS_MUTATION = gql`
+  mutation CreateMultipleGroceryListItemsMutation(
+    $inputs: [CreateGroceryListItemInput!]!
+  ) {
+    createMultipleGroceryListItems(inputs: $inputs) {
+      addedCount
+      skippedCount
+      addedItems {
+        id
+        name
+      }
+      skippedItems
+    }
+  }
+`
+
 interface MealDisplayCardProps {
   mealName: string | null
+  pantryItemNames: string[]
+  pantryLoading: boolean
+  pantryError: Error | undefined
 }
 
-const MealDisplayCard: React.FC<MealDisplayCardProps> = ({ mealName }) => {
-  // Define a type for items to be added to grocery list from here
-  // This aligns with what GroceryListPage expects, minus id and purchased status initially
-  type PendingGroceryItem = {
-    name: string
-    category: string // We'll use a default category like 'Other'
-  }
+const MealDisplayCard: React.FC<MealDisplayCardProps> = ({
+  mealName,
+  pantryItemNames,
+  /*pantryLoading, pantryError are not used yet, but kept for future use*/
+}) => {
   const [details, setDetails] = useState<MealDetails | null>(null)
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState(true) // For LLM call
   const [error, setError] = useState<string | null>(null)
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(
     new Set()
   )
+
+  const [
+    createMultipleGroceryListItems,
+    { loading: _createLoading, error: _createError },
+  ] = useMutation<
+    CreateMultipleGroceryListItemsMutation,
+    CreateMultipleGroceryListItemsMutationVariables
+  >(CREATE_MULTIPLE_GROCERY_LIST_ITEMS_MUTATION, {
+    onCompleted: (data) => {
+      const { addedCount, skippedCount, skippedItems } =
+        data.createMultipleGroceryListItems
+      if (addedCount > 0) {
+        toast.success(`${addedCount} ingredient(s) added to grocery list!`)
+      }
+      if (skippedCount > 0) {
+        toast(
+          `${skippedCount} ingredient(s) already on the list: ${skippedItems.join(
+            ', '
+          )}`
+        )
+      }
+    },
+    onError: (error) => {
+      toast.error(`Failed to add ingredients: ${error.message}`)
+    },
+    refetchQueries: [{ query: GET_GROCERY_LIST_ITEMS_QUERY }],
+    awaitRefetchQueries: true,
+  })
 
   useEffect(() => {
     if (!mealName) {
@@ -245,93 +299,25 @@ const MealDisplayCard: React.FC<MealDisplayCardProps> = ({ mealName }) => {
     })
   }
 
-  const handleAddToGroceryList = () => {
-    console.log('[MealDisplayCard] handleAddToGroceryList triggered')
+  const handleAddToGroceryList = async () => {
     const ingredientsToAddArray = Array.from(selectedIngredients)
-    console.log(
-      '[MealDisplayCard] selectedIngredients (raw Set):',
-      selectedIngredients
-    )
-    console.log(
-      '[MealDisplayCard] ingredientsToAddArray (from Set):',
-      ingredientsToAddArray
-    )
+
     if (ingredientsToAddArray.length === 0) {
-      setFeedbackMessage('No ingredients selected to add.')
-      setTimeout(() => setFeedbackMessage(null), 3000)
+      toast.error('No ingredients selected to add.')
       return
     }
 
-    const itemsToAdd: PendingGroceryItem[] = ingredientsToAddArray.map(
-      (ingredientName) => ({
-        name: ingredientName,
-        category: getCategoryForIngredient(ingredientName),
-      })
-    )
-    console.log(
-      '[MealDisplayCard] itemsToAdd (selected items with category):',
-      itemsToAdd
-    )
+    const inputs = ingredientsToAddArray.map((ingredientName) => ({
+      name: ingredientName,
+      category: getCategoryForIngredient(ingredientName),
+      purchased: false,
+    }))
 
-    try {
-      const existingPendingItemsRaw = localStorage.getItem(
-        'pendingGroceryItems'
-      )
-      const existingPendingItems: PendingGroceryItem[] = existingPendingItemsRaw
-        ? JSON.parse(existingPendingItemsRaw)
-        : []
-      console.log(
-        '[MealDisplayCard] existingPendingItems (from localStorage before add):',
-        existingPendingItems
-      )
+    await createMultipleGroceryListItems({ variables: { inputs } })
 
-      // Simple check to avoid adding exact same named items if function is spammed
-      // More robust duplicate handling (e.g. by ID) would be in GroceryListPage itself
-      const newItemsToActuallyAdd = itemsToAdd.filter(
-        (newItem) =>
-          !existingPendingItems.some(
-            (existingItem) => existingItem.name === newItem.name
-          )
-      )
-      console.log(
-        '[MealDisplayCard] newItemsToActuallyAdd (after filtering against existing pending):',
-        newItemsToActuallyAdd
-      )
-
-      // If all selected items were already in the queue, inform the user
-      if (newItemsToActuallyAdd.length === 0 && itemsToAdd.length > 0) {
-        setFeedbackMessage('Selected ingredients were already in the queue.')
-        setTimeout(() => setFeedbackMessage(null), 3000)
-        return
-      }
-
-      const updatedPendingItems = [
-        ...existingPendingItems,
-        ...newItemsToActuallyAdd,
-      ]
-      console.log(
-        '[MealDisplayCard] updatedPendingItems (to be saved to localStorage):',
-        updatedPendingItems
-      )
-      localStorage.setItem(
-        'pendingGroceryItems',
-        JSON.stringify(updatedPendingItems)
-      )
-      const finalMessage =
-        newItemsToActuallyAdd.length > 0
-          ? `${newItemsToActuallyAdd.length} ingredient(s) added to grocery list queue!`
-          : itemsToAdd.length > 0
-            ? 'Selected ingredients already in queue.'
-            : 'No new ingredients to add.'
-      setFeedbackMessage(finalMessage)
-      setSelectedIngredients(new Set()) // Clear selection after adding
-    } catch (e) {
-      console.error('Failed to save pending grocery items:', e)
-      setFeedbackMessage('Error adding ingredients.')
-    }
-
-    setTimeout(() => setFeedbackMessage(null), 3000)
+    setSelectedIngredients(new Set())
   }
+
   if (!mealName) {
     return (
       <div className="mt-8 rounded-lg border border-gray-200 p-6 text-center text-gray-500 shadow">
@@ -379,7 +365,14 @@ const MealDisplayCard: React.FC<MealDisplayCardProps> = ({ mealName }) => {
                   onChange={() => handleIngredientSelectionChange(ingredient)}
                   className="mr-2 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
                 />
-                <label htmlFor={`ingredient-${index}`}>{ingredient}</label>
+                <label htmlFor={`ingredient-${index}`}>
+                  {ingredient}
+                  {pantryItemNames.includes(ingredient.toLowerCase()) && (
+                    <span className="ml-1 text-xs text-blue-600">
+                      (In Pantry)
+                    </span>
+                  )}
+                </label>
               </li>
             ))}
           </ul>
@@ -422,11 +415,6 @@ const MealDisplayCard: React.FC<MealDisplayCardProps> = ({ mealName }) => {
           Add Ingredients to Grocery List
         </button>
       </div>
-      {feedbackMessage && (
-        <div className="mt-4 rounded-md bg-blue-100 p-2 text-center text-sm text-blue-700">
-          {feedbackMessage}
-        </div>
-      )}
     </div>
   )
 }

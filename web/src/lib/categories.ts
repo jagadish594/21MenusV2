@@ -2,7 +2,7 @@ export const CATEGORIES = [
   'Produce',
   'Dairy',
   'Meat & Seafood',
-  'Snacks', // Formerly 'Pantry'
+  'Pantry',
   'Frozen',
   'Beverages',
   'Condiments/Spices',
