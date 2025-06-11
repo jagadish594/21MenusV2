@@ -2,6 +2,7 @@ export const schema = gql`
   enum PantryItemStatus {
     InStock
     OutOfStock
+    LowStock
   }
 
   type PantryItem {

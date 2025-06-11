@@ -29,51 +29,26 @@ interface MealDetailsFromLLM {
 export const getMealDetails = async ({ mealName }: { mealName: string }) => {
   console.log(`[getMealDetails Service] Received request for meal: ${mealName}`)
 
-  const llmApiUrl = process.env.LLM_API_URL // IMPORTANT: Set this in your .env file!
-  // Example: LLM_API_URL=http://localhost:5000/generate-meal-details
-  // Or your actual LLM provider's endpoint
-
-  if (!llmApiUrl) {
-    console.error(
-      '[getMealDetails Service] LLM_API_URL is not set in environment variables.'
-    )
-    // Return a structured error string, or throw an error
-    // Depending on how your frontend handles GraphQL errors from string fields
-    return JSON.stringify({
-      error: 'LLM service is not configured.',
-      mealName: mealName,
-      ingredients: [],
-      // ... other fields to make it parsable by frontend if it expects structure
-    })
-  }
-
-  // Construct the full URL with query parameters
-  // Adjust if your LLM API expects mealName differently (e.g., in body for POST)
-  const url = new URL(llmApiUrl)
+  // Temporarily hardcoding for local development as process.env.REDWOOD_API_URL was undefined.
+  // API port is 8912. Functions are served relative to the API server root.
+  const functionEndpoint = 'http://localhost:8912/getMealDetails'
+  const url = new URL(functionEndpoint)
   url.searchParams.append('mealName', mealName)
 
-  console.log(`[getMealDetails Service] Calling LLM API: ${url.toString()}`)
+  console.log(`[getMealDetails Service] Calling internal function: ${url.toString()}`)
 
   try {
-    // IMPORTANT: Add any necessary headers, like Authorization for API keys
-    // const response = await fetch(url.toString(), {
-    //   method: 'GET', // or 'POST' if required
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     'Authorization': `Bearer ${process.env.LLM_API_KEY}` // Example API Key
-    //   },
-    //   // body: JSON.stringify({ mealName: mealName }) // If it's a POST request
-    // });
-    const response = await fetch(url.toString()) // Assuming simple GET for now
+    // This is an internal call to another Redwood function, so no special LLM API keys are needed here.
+    // The target function (/api/getMealDetails) will handle its own OpenAI authentication.
+    const response = await fetch(url.toString())
 
     if (!response.ok) {
       const errorBody = await response.text()
       console.error(
-        `[getMealDetails Service] LLM API request failed with status ${response.status}: ${errorBody}`
+        `[getMealDetails Service] Internal function call failed with status ${response.status}: ${errorBody}`
       )
-      // Again, return a structured error string
       return JSON.stringify({
-        error: `LLM API request failed: ${response.statusText}`,
+        error: `Internal function call failed: ${response.statusText}`,
         mealName: mealName,
         ingredients: [],
       })
@@ -83,13 +58,13 @@ export const getMealDetails = async ({ mealName }: { mealName: string }) => {
     const mealDetailsFromLLM: MealDetailsFromLLM = await response.json()
 
     console.log(
-      `[getMealDetails Service] Successfully received details from LLM for: ${mealName}`
+      `[getMealDetails Service] Successfully received details from internal function for: ${mealName}`
     )
     // The GraphQL schema expects a String, so we stringify the JSON object
     return JSON.stringify(mealDetailsFromLLM)
   } catch (error) {
     console.error(
-      `[getMealDetails Service] Error calling LLM or processing response: ${error.message}`,
+      `[getMealDetails Service] Error calling internal function or processing response: ${error.message}`,
       error
     )
     // Return a structured error string
