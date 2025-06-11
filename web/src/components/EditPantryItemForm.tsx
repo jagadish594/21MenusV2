@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 
-import type { PantryItem, UpdatePantryItemInput, PantryItemStatus } from 'types/graphql'
+import type {
+  PantryItem,
+  UpdatePantryItemInput,
+  PantryItemStatus,
+} from 'types/graphql'
 
 import {
   Form,
@@ -13,6 +17,7 @@ import {
 } from '@redwoodjs/forms'
 import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+
 import { CATEGORIES, type Category } from 'src/lib/categories'
 
 const PANTRY_ITEM_STATUSES: PantryItemStatus[] = ['InStock', 'OutOfStock']

@@ -230,16 +230,21 @@ const SortablePantryItem = ({
           />
           <div className="flex flex-grow flex-col">
             <div className="flex-1 truncate">
-              <HighlightMatch text={item.name} highlight={searchTerm || ''} /> <span className="text-xs text-gray-500">({item.status})</span>
+              <HighlightMatch text={item.name} highlight={searchTerm || ''} />{' '}
+              <span className="text-xs text-gray-500">({item.status})</span>
             </div>
             {item.quantity && (
               <span className="text-sm text-gray-600">
-                Quantity:{' '}{item.quantity}
+                Quantity: {item.quantity}
               </span>
             )}
             {item.notes && (
               <span className="text-sm text-gray-500">
-                Notes: <HighlightMatch text={item.notes} highlight={searchTerm || ''} />
+                Notes:{' '}
+                <HighlightMatch
+                  text={item.notes}
+                  highlight={searchTerm || ''}
+                />
               </span>
             )}
           </div>
@@ -341,15 +346,16 @@ const DroppableCategory = ({
 export const Success = ({
   pantryItems: initialPantryItems,
 }: CellSuccessProps<PantryItemsQuery, PantryItemsQueryVariables>) => {
-  const [inputValue, setInputValue] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [inputValue, setInputValue] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [editingItem, setEditingItem] = useState<PantryItem | null>(null)
-  const [localPantryItems, setLocalPantryItems] =
-    useState<PantryItem[]>(() => initialPantryItems.map((item) => ({
+  const [localPantryItems, setLocalPantryItems] = useState<PantryItem[]>(() =>
+    initialPantryItems.map((item) => ({
       ...item,
       // Ensure status conforms to PantryItemStatus, as expected by the PantryItem type
       status: item.status as PantryItemStatus,
-    })))
+    }))
+  )
   const [activeDragItem, setActiveDragItem] = useState<PantryItem | null>(null)
 
   const filteredPantryItems = useMemo(() => {
@@ -357,10 +363,10 @@ export const Success = ({
       return localPantryItems
     }
     return localPantryItems.filter((item) => {
-      const term = searchTerm.toLowerCase();
-      const nameMatch = item.name.toLowerCase().includes(term);
-      const notesMatch = item.notes?.toLowerCase().includes(term) ?? false;
-      return nameMatch || notesMatch;
+      const term = searchTerm.toLowerCase()
+      const nameMatch = item.name.toLowerCase().includes(term)
+      const notesMatch = item.notes?.toLowerCase().includes(term) ?? false
+      return nameMatch || notesMatch
     })
   }, [localPantryItems, searchTerm])
   const [selectedItemIds, setSelectedItemIds] = useState(new Set<number>())
@@ -371,67 +377,85 @@ export const Success = ({
     }
     for (const id of selectedItemIds) {
       const selectedItem = localPantryItems.find((item) => item.id === id)
-      if (selectedItem && selectedItem.status === "InStock") {
+      if (selectedItem && selectedItem.status === 'InStock') {
         return true
       }
     }
     return false
   }, [selectedItemIds, localPantryItems])
 
-
   const [addPantryItemsToGrocery, { loading: addItemsLoading }] = useMutation<
     AddPantryItemsToGroceryListMutation,
     { inputs: AddPantryItemToGroceryInput[] }
   >(ADD_PANTRY_ITEMS_TO_GROCERY_LIST_MUTATION, {
     update: (cache, { data: mutationData }) => {
-      console.log('[PantryItemsCell] Update function called.');
+      console.log('[PantryItemsCell] Update function called.')
       if (!mutationData?.addPantryItemsToGroceryList?.addedItems) {
-        console.log('[PantryItemsCell] No addedItems in mutationData.');
+        console.log('[PantryItemsCell] No addedItems in mutationData.')
         return
       }
-      const { addedItems } = mutationData.addPantryItemsToGroceryList;
-      console.log('[PantryItemsCell] addedItems from mutation:', JSON.stringify(addedItems));
+      const { addedItems } = mutationData.addPantryItemsToGroceryList
+      console.log(
+        '[PantryItemsCell] addedItems from mutation:',
+        JSON.stringify(addedItems)
+      )
       if (addedItems.length === 0) {
-        console.log('[PantryItemsCell] addedItems array is empty.');
-        return;
+        console.log('[PantryItemsCell] addedItems array is empty.')
+        return
       }
 
-      const queryOptions = { query: GET_GROCERY_LIST_ITEMS_QUERY };
-      let existingCacheData = null;
+      const queryOptions = { query: GET_GROCERY_LIST_ITEMS_QUERY }
+      let existingCacheData = null
       try {
-        existingCacheData = cache.readQuery<GroceryListItemsQuery>(queryOptions);
+        existingCacheData = cache.readQuery<GroceryListItemsQuery>(queryOptions)
       } catch {
         // This is fine, means the query isn't in the cache yet
-        console.log('[PantryItemsCell] GET_GROCERY_LIST_ITEMS_QUERY not found in cache (expected if GroceryListPage not visited).');
+        console.log(
+          '[PantryItemsCell] GET_GROCERY_LIST_ITEMS_QUERY not found in cache (expected if GroceryListPage not visited).'
+        )
       }
 
-      if (!existingCacheData || !existingCacheData.groceryListItems || existingCacheData.groceryListItems.length === 0) {
+      if (
+        !existingCacheData ||
+        !existingCacheData.groceryListItems ||
+        existingCacheData.groceryListItems.length === 0
+      ) {
         console.warn(
           '[PantryItemsCell] Cache miss or empty/null groceryListItems for GET_GROCERY_LIST_ITEMS_QUERY. Using writeQuery with ONLY new items.',
-          'Current cache data for query:', existingCacheData
-        );
+          'Current cache data for query:',
+          existingCacheData
+        )
         // This will create/overwrite the groceryListItems with only the newly added items.
         cache.writeQuery<GroceryListItemsQuery>({
           ...queryOptions,
           data: { groceryListItems: addedItems }, // addedItems comes from the mutation
-        });
+        })
         if (addedItems.length > 0) {
-            // Event emission was removed here, so log is also removed.
+          // Event emission was removed here, so log is also removed.
         }
       } else {
         // Cache exists and has items, so use cache.modify
-        console.log('[PantryItemsCell] Cache hit for GET_GROCERY_LIST_ITEMS_QUERY. Using cache.modify.');
+        console.log(
+          '[PantryItemsCell] Cache hit for GET_GROCERY_LIST_ITEMS_QUERY. Using cache.modify.'
+        )
         cache.modify({
           fields: {
             groceryListItems(existingItemsRef = [], { readField }) {
-              console.log('[PantryItemsCell] Inside groceryListItems modifier function. Existing refs count:', existingItemsRef.length);
-              const newItemsRef = [];
+              console.log(
+                '[PantryItemsCell] Inside groceryListItems modifier function. Existing refs count:',
+                existingItemsRef.length
+              )
+              const newItemsRef = []
               for (const item of addedItems) {
-                console.log(`[PantryItemsCell] Processing item: ${item.name} (ID: ${item.id})`);
+                console.log(
+                  `[PantryItemsCell] Processing item: ${item.name} (ID: ${item.id})`
+                )
                 const itemAlreadyExists = existingItemsRef.some(
                   (ref) => readField('id', ref) === item.id
-                );
-                console.log(`[PantryItemsCell] Item ${item.name} already exists in cache? ${itemAlreadyExists}`);
+                )
+                console.log(
+                  `[PantryItemsCell] Item ${item.name} already exists in cache? ${itemAlreadyExists}`
+                )
                 if (!itemAlreadyExists) {
                   const newItemRef = cache.writeFragment({
                     data: item,
@@ -445,22 +469,27 @@ export const Success = ({
                         updatedAt
                       }
                     `,
-                  });
-                  newItemsRef.push(newItemRef);
-                  console.log(`[PantryItemsCell] Added ${item.name} to newItemsRef.`);
+                  })
+                  newItemsRef.push(newItemRef)
+                  console.log(
+                    `[PantryItemsCell] Added ${item.name} to newItemsRef.`
+                  )
                 }
               }
-              const finalItems = [...existingItemsRef, ...newItemsRef];
-              console.log(`[PantryItemsCell] newItemsRef length (from cache.modify): ${newItemsRef.length}`);
+              const finalItems = [...existingItemsRef, ...newItemsRef]
+              console.log(
+                `[PantryItemsCell] newItemsRef length (from cache.modify): ${newItemsRef.length}`
+              )
               // Event emission and related logs removed as part of simplifying event handling.
-              return finalItems;
+              return finalItems
             },
           },
-        });
+        })
       }
     },
     onCompleted: (data) => {
-      const { addedCount, skippedCount, skippedItems } = data.addPantryItemsToGroceryList
+      const { addedCount, skippedCount, skippedItems } =
+        data.addPantryItemsToGroceryList
       if (addedCount > 0) {
         toast.success(
           `${addedCount} item${addedCount > 1 ? 's' : ''} added to grocery list.`
@@ -524,22 +553,24 @@ export const Success = ({
   }
 
   useEffect(() => {
-    setLocalPantryItems(initialPantryItems.map((item) => ({
-      ...item,
-      // Ensure status conforms to PantryItemStatus, as expected by the PantryItem type
-      status: item.status as PantryItemStatus,
-    })))
+    setLocalPantryItems(
+      initialPantryItems.map((item) => ({
+        ...item,
+        // Ensure status conforms to PantryItemStatus, as expected by the PantryItem type
+        status: item.status as PantryItemStatus,
+      }))
+    )
   }, [initialPantryItems])
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setSearchTerm(inputValue);
-    }, 300); // 300ms debounce delay
+      setSearchTerm(inputValue)
+    }, 300) // 300ms debounce delay
 
     return () => {
-      clearTimeout(handler);
-    };
-  }, [inputValue]);
+      clearTimeout(handler)
+    }
+  }, [inputValue])
 
   const [deletePantryItem] = useMutation<
     DeletePantryItemMutation,
@@ -806,71 +837,80 @@ export const Success = ({
           placeholder="Search pantry items..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-      className="rw-input w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-blue-500"
-    />
-  </div>
-  <div className="my-4 text-center">
-    {/* Conditional message about 'In Stock' items */}
-    {selectedItemIds.size > 0 && hasSelectedInStockItem && (
-      <p className="my-2 text-sm text-orange-600">
-        Note: Only &apos;Out of Stock&apos; items will be added to the Grocery List.
-      </p>
-    )}
-    <button
-      type="button"
-      onClick={handleAddSelectedToGroceryList} 
-      disabled={selectedItemIds.size === 0 || countSelectedOutOfStock === 0 || addItemsLoading}
-      className="rounded bg-green-500 px-6 py-2 text-lg font-semibold text-white shadow hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
-    >
-      {addItemsLoading ? 'Adding...' : `Add ${countSelectedOutOfStock} Selected 'Out of Stock' to Grocery List`}
-    </button>
-  </div>
-  <DndContext
-    sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      {searchTerm && filteredPantryItems.length === 0 ? (
-        <div className="py-4 text-center italic text-gray-500">
-          No items found matching &apos;{searchTerm}&apos;.
-        </div>
-      ) : (
-        <div className="space-y-6">
-        {categories.map((categoryKey) => (
-          <DroppableCategory
-            key={categoryKey}
-            id={categoryKey}
-            categoryName={categoryKey}
-            items={groupedItems[categoryKey]}
-            editingItemId={editingItem?.id ?? null}
-            onEditClick={handleEditClick}
-            onDeleteClick={onDeleteClick}
-            onSaveEdit={handleSaveEdit}
-            onCancelEdit={handleCancelEdit}
-            selectedItemIds={selectedItemIds}
-            onToggleSelectItem={handleToggleSelectItem}
-            searchTerm={searchTerm}
-          />
-        ))}
-        </div>
-      )}
-      <DragOverlay>
-        {activeDragItem ? (
-          <SortablePantryItem
-            item={activeDragItem}
-            isEditing={false}
-            onEditClick={() => {}}
-            onDeleteClick={() => {}}
-            onSaveEdit={() => {}}
-            onCancelEdit={() => {}}
-            isSelected={activeDragItem ? selectedItemIds.has(activeDragItem.id) : false}
-            onToggleSelectItem={handleToggleSelectItem} // Pass handler, though likely not used in overlay
-            isOverlay
-          />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
-  </>
-)
+          className="rw-input w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-blue-500"
+        />
+      </div>
+      <div className="my-4 text-center">
+        {/* Conditional message about 'In Stock' items */}
+        {selectedItemIds.size > 0 && hasSelectedInStockItem && (
+          <p className="my-2 text-sm text-orange-600">
+            Note: Only &apos;Out of Stock&apos; items will be added to the
+            Grocery List.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={handleAddSelectedToGroceryList}
+          disabled={
+            selectedItemIds.size === 0 ||
+            countSelectedOutOfStock === 0 ||
+            addItemsLoading
+          }
+          className="rounded bg-green-500 px-6 py-2 text-lg font-semibold text-white shadow hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
+        >
+          {addItemsLoading
+            ? 'Adding...'
+            : `Add ${countSelectedOutOfStock} Selected 'Out of Stock' to Grocery List`}
+        </button>
+      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        {searchTerm && filteredPantryItems.length === 0 ? (
+          <div className="py-4 text-center italic text-gray-500">
+            No items found matching &apos;{searchTerm}&apos;.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {categories.map((categoryKey) => (
+              <DroppableCategory
+                key={categoryKey}
+                id={categoryKey}
+                categoryName={categoryKey}
+                items={groupedItems[categoryKey]}
+                editingItemId={editingItem?.id ?? null}
+                onEditClick={handleEditClick}
+                onDeleteClick={onDeleteClick}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={handleCancelEdit}
+                selectedItemIds={selectedItemIds}
+                onToggleSelectItem={handleToggleSelectItem}
+                searchTerm={searchTerm}
+              />
+            ))}
+          </div>
+        )}
+        <DragOverlay>
+          {activeDragItem ? (
+            <SortablePantryItem
+              item={activeDragItem}
+              isEditing={false}
+              onEditClick={() => {}}
+              onDeleteClick={() => {}}
+              onSaveEdit={() => {}}
+              onCancelEdit={() => {}}
+              isSelected={
+                activeDragItem ? selectedItemIds.has(activeDragItem.id) : false
+              }
+              onToggleSelectItem={handleToggleSelectItem} // Pass handler, though likely not used in overlay
+              isOverlay
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+    </>
+  )
 }

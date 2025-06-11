@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react'
 
 // Sample meal data - replace with API call later
@@ -24,11 +23,14 @@ const allMeals: string[] = [
 ]
 
 interface MealSearchBarProps {
-  onMealSelect?: (mealName: string) => void;
-  initialQuery?: string; // New prop
+  onMealSelect?: (mealName: string) => void
+  initialQuery?: string // New prop
 }
 
-const MealSearchBar: React.FC<MealSearchBarProps> = ({ onMealSelect, initialQuery }) => {
+const MealSearchBar: React.FC<MealSearchBarProps> = ({
+  onMealSelect,
+  initialQuery,
+}) => {
   const [searchTerm, setSearchTerm] = useState(initialQuery || '')
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -50,7 +52,10 @@ const MealSearchBar: React.FC<MealSearchBarProps> = ({ onMealSelect, initialQuer
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchBarRef.current && !searchBarRef.current.contains(event.target as Node)) {
+      if (
+        searchBarRef.current &&
+        !searchBarRef.current.contains(event.target as Node)
+      ) {
         setShowSuggestions(false)
       }
     }
@@ -68,18 +73,18 @@ const MealSearchBar: React.FC<MealSearchBarProps> = ({ onMealSelect, initialQuer
     setSearchTerm(suggestion)
     setShowSuggestions(false)
     // Optionally, trigger search submission here
-    console.log('Selected:', suggestion);
+    console.log('Selected:', suggestion)
     if (onMealSelect) {
-      onMealSelect(suggestion);
+      onMealSelect(suggestion)
     }
   }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setShowSuggestions(false)
-    console.log('Searching for:', searchTerm);
+    console.log('Searching for:', searchTerm)
     if (searchTerm.trim() !== '' && onMealSelect) {
-      onMealSelect(searchTerm.trim());
+      onMealSelect(searchTerm.trim())
     }
     // Actual search/data fetching logic will go here
   }
@@ -92,8 +97,10 @@ const MealSearchBar: React.FC<MealSearchBarProps> = ({ onMealSelect, initialQuer
           placeholder="Search for a meal (e.g., Dosa, Chicken Salad)"
           value={searchTerm}
           onChange={handleInputChange}
-          onFocus={() => setShowSuggestions(searchTerm.length > 0 && suggestions.length > 0)}
-          className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          onFocus={() =>
+            setShowSuggestions(searchTerm.length > 0 && suggestions.length > 0)
+          }
+          className="w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
           aria-autocomplete="list"
           aria-controls="autocomplete-suggestions"
         />
@@ -101,13 +108,13 @@ const MealSearchBar: React.FC<MealSearchBarProps> = ({ onMealSelect, initialQuer
       {showSuggestions && suggestions.length > 0 && (
         <ul
           id="autocomplete-suggestions"
-          className="absolute z-10 w-full bg-white border border-gray-300 rounded-b-lg shadow-lg max-h-60 overflow-y-auto"
+          className="absolute z-10 max-h-60 w-full overflow-y-auto rounded-b-lg border border-gray-300 bg-white shadow-lg"
         >
           {suggestions.map((suggestion, index) => (
             <li
               key={index}
               onClick={() => handleSuggestionClick(suggestion)}
-              className="p-3 hover:bg-gray-100 cursor-pointer"
+              className="cursor-pointer p-3 hover:bg-gray-100"
               role="option"
               aria-selected={false} // Can be enhanced with keyboard navigation
             >

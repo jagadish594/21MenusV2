@@ -1,4 +1,5 @@
 import { render, screen } from '@redwoodjs/testing/web'
+
 import HomePage from './HomePage'
 
 // Define mocks for hooks and components
@@ -10,15 +11,13 @@ const mockUseMutation = jest.fn(() => [
 ])
 const mockToastSuccess = jest.fn()
 const mockToastError = jest.fn()
-const MockMetaTagsComponent = jest.fn(
-  ({ title, description, children }) => (
-    <>
-      {title && <title>{title}</title>}
-      {description && <meta name="description" content={description} />}
-      {children}
-    </>
-  )
-)
+const MockMetaTagsComponent = jest.fn(({ title, description, children }) => (
+  <>
+    {title && <title>{title}</title>}
+    {description && <meta name="description" content={description} />}
+    {children}
+  </>
+))
 
 // Mock the entire @redwoodjs/web module
 jest.mock('@redwoodjs/web', () => {
@@ -61,7 +60,9 @@ describe('HomePage', () => {
   })
 
   it('renders successfully and calls useQuery', () => {
-    console.log('JEST_TRACE: Running "renders successfully and calls useQuery" test')
+    console.log(
+      'JEST_TRACE: Running "renders successfully and calls useQuery" test'
+    )
     expect(() => {
       render(<HomePage />)
     }).not.toThrow()

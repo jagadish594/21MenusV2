@@ -9,7 +9,7 @@ export const schema = gql`
   }
 
   type Query {
-        groceryListItems: [GroceryListItem!]! @requireAuth
+    groceryListItems: [GroceryListItem!]! @requireAuth
     groceryListItem(id: Int!): GroceryListItem @requireAuth
   }
 
@@ -31,7 +31,7 @@ export const schema = gql`
     purchased: Boolean
   }
 
-    type CreateMultipleGroceryListItemsResult {
+  type CreateMultipleGroceryListItemsResult {
     addedCount: Int!
     skippedCount: Int!
     addedItems: [GroceryListItem!]
@@ -57,13 +57,14 @@ export const schema = gql`
       input: UpdateGroceryListItemInput!
     ): GroceryListItem! @requireAuth
     deleteGroceryListItem(id: Int!): GroceryListItem! @requireAuth
-        createMultipleGroceryListItems(
+    createMultipleGroceryListItems(
       inputs: [CreateGroceryListItemInput!]!
     ): CreateMultipleGroceryListItemsResult! @requireAuth
 
     addPantryItemsToGroceryList(
       inputs: [AddPantryItemToGroceryInput!]!
     ): AddPantryItemsToGroceryResult! @requireAuth
-    deleteGroceryListItemsByCategory(category: String!): BatchDeleteResult! @requireAuth
+    deleteGroceryListItemsByCategory(category: String!): BatchDeleteResult!
+      @requireAuth
   }
 `

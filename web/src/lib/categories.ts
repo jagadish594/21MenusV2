@@ -7,6 +7,6 @@ export const CATEGORIES = [
   'Beverages',
   'Condiments/Spices',
   'Other',
-] as const;
+] as const
 
-export type Category = (typeof CATEGORIES)[number];
+export type Category = (typeof CATEGORIES)[number]

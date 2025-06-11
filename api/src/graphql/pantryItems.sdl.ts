@@ -60,8 +60,7 @@ export const schema = gql`
     deletePantryItem(id: Int!): PantryItem! @requireAuth
     updatePantryItemOrders(
       inputs: [UpdatePantryItemOrderInput!]!
-    )
-    : [PantryItem!]! @requireAuth
+    ): [PantryItem!]! @requireAuth
     upsertPantryItemFromGroceryItem(
       input: UpsertPantryItemFromGroceryInput!
     ): PantryItem! @requireAuth

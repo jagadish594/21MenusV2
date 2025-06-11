@@ -15,8 +15,8 @@ import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY as PANTRY_ITEMS_QUERY } from 'src/components/PantryItemsCell/PantryItemsCell' // Import the query for refetching
-import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage' // Import the grocery list query
 import { CATEGORIES, type Category } from 'src/lib/categories'
+import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage' // Import the grocery list query
 
 const CREATE_PANTRY_ITEM_MUTATION = gql`
   mutation CreatePantryItemMutation($input: CreatePantryItemInput!) {

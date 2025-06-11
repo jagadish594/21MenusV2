@@ -112,7 +112,6 @@ const GroceryListPage: React.FC = () => {
     GET_GROCERY_LIST_ITEMS_QUERY
   )
 
-
   // Hook for the new upsert pantry item mutation
   const [
     upsertPantryItemFromGroceryItem,

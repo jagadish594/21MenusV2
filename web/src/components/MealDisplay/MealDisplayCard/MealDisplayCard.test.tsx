@@ -1,5 +1,13 @@
 // Mock the actual mutation function returned by useMutation
 const mockCreateGroceryListItem = jest.fn().mockResolvedValue({ data: {} })
+const mockCallGetMealDetails = jest.fn().mockResolvedValue({
+  data: {
+    getMealDetails: JSON.stringify({
+      mealName: 'Mocked Meal',
+      ingredients: [],
+    }),
+  },
+})
 
 jest.mock('@redwoodjs/web', () => ({
   // Import and retain default behavior for other @redwoodjs/web exports
@@ -8,6 +16,11 @@ jest.mock('@redwoodjs/web', () => ({
   useMutation: () => [
     mockCreateGroceryListItem, // The mock mutation function itself
     { loading: false, error: null }, // The state object returned by useMutation
+  ],
+  // Mock useLazyQuery
+  useLazyQuery: () => [
+    mockCallGetMealDetails, // The mock query function itself
+    { loading: false, error: null, data: null }, // The state object returned by useLazyQuery
   ],
   // Mock toast
   toast: {
@@ -27,19 +40,44 @@ describe('MealDisplayCard', () => {
   // Clear mocks before each test to ensure test isolation
   beforeEach(() => {
     mockCreateGroceryListItem.mockClear()
+    mockCallGetMealDetails.mockClear()
     ;(jest.requireMock('@redwoodjs/web').toast.success as jest.Mock).mockClear()
     ;(jest.requireMock('@redwoodjs/web').toast.error as jest.Mock).mockClear()
   })
 
   it('renders successfully with default props', () => {
     expect(() => {
-      render(<MealDisplayCard pantryItemNames={[]} />)
+      render(
+        <MealDisplayCard
+          mealName={null}
+          pantryItemNames={[]}
+          mealIngredients={[]}
+          setMealIngredients={jest.fn()}
+          selectedIngredients={new Set()}
+          setSelectedIngredients={jest.fn()}
+          toggleIngredientSelection={jest.fn()}
+          pantryLoading={false}
+          pantryError={undefined}
+        />
+      )
     }).not.toThrow()
   })
 
   it('renders successfully with a meal name', () => {
     expect(() => {
-      render(<MealDisplayCard mealName="Test Meal" pantryItemNames={[]} />)
+      render(
+        <MealDisplayCard
+          mealName="Test Meal"
+          pantryItemNames={[]}
+          mealIngredients={[]}
+          setMealIngredients={jest.fn()}
+          selectedIngredients={new Set()}
+          setSelectedIngredients={jest.fn()}
+          toggleIngredientSelection={jest.fn()}
+          pantryLoading={false}
+          pantryError={undefined}
+        />
+      )
     }).not.toThrow()
     expect(screen.getByText('Ingredients for Test Meal:')).toBeInTheDocument()
   })
