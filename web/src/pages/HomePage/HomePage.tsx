@@ -47,8 +47,8 @@ const HomePageContent = () => {
   return (
     <>
       <MetaTags
-        title="21menus - Meal Planner"
-        description="Plan your weekly meals with 21menus"
+        title="Feast Daily - Meal Planner"
+        description="Plan your weekly meals with Feast Daily"
       />
 
       <div className="container mx-auto p-4">
