@@ -15,7 +15,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             onClick={() => navigate(routes.home())}
             className="cursor-pointer border-none bg-transparent p-0 text-xl font-bold hover:text-teal-200"
           >
-            21Menus
+            Feast Daily
           </button>
           <ul className="flex space-x-4">
             <li>
