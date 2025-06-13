@@ -10,7 +10,6 @@ import {
   useSensors,
   type DragEndEvent,
   useDroppable,
-  DragOverlay,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -30,7 +29,9 @@ import type { PantryItemStatus, // Import PantryItemStatus as a type
   UpdatePantryItemOrderInput,
   AddPantryItemToGroceryInput,
   AddPantryItemsToGroceryListMutation,
-  GroceryListItemsQuery, // Consolidated here
+  DeleteCategoryMutation,
+  DeleteCategoryMutationVariables,
+  // Consolidated here
   SuggestMealsFromPantryMutation,
   SuggestMealsFromPantryMutationVariables,
 } from 'types/graphql'
@@ -84,7 +85,12 @@ export const QUERY: TypedDocumentNode<
     pantryItems {
       id
       name
-      category
+      category {
+        id
+        name
+        createdAt
+        updatedAt
+      }
       order
       quantity
       notes
@@ -109,6 +115,14 @@ export const Failure = ({
   <div style={{ color: 'red' }}>Error: {error?.message}</div>
 )
 
+const DELETE_CATEGORY_MUTATION = gql`
+  mutation DeleteCategoryMutation($id: Int!) {
+    deleteCategory(id: $id) {
+      id
+    }
+  }
+`
+
 const DELETE_PANTRY_ITEM_MUTATION = gql`
   mutation DeletePantryItemMutation($id: Int!) {
     deletePantryItem(id: $id) {
@@ -124,7 +138,10 @@ const UPDATE_PANTRY_ITEM_ORDERS_MUTATION = gql`
     updatePantryItemOrders(inputs: $inputs) {
       id # Minimal return, relying on refetch for full data
       order
-      category
+      category {
+        id
+        name
+      }
     }
   }
 `
@@ -142,7 +159,10 @@ const ADD_PANTRY_ITEMS_TO_GROCERY_LIST_MUTATION: TypedDocumentNode<
       addedItems {
         id
         name
-        category
+        category {
+          id
+          name
+        }
         purchased
         createdAt
         updatedAt
@@ -291,6 +311,7 @@ interface DroppableCategoryProps {
   onDeleteClick: (id: number, name: string) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
+  onDeleteCategory: (categoryName: string) => void
 }
 
 const DroppableCategory = ({
@@ -305,6 +326,7 @@ const DroppableCategory = ({
   selectedItemIds,
   onToggleSelectItem,
   searchTerm,
+  onDeleteCategory,
 }: DroppableCategoryProps) => {
   const { isOver, setNodeRef } = useDroppable({
     id,
@@ -320,9 +342,18 @@ const DroppableCategory = ({
         isOver ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50'
       }`}
     >
-      <h2 className="mb-3 border-b pb-2 text-xl font-semibold text-gray-700">
-        {categoryName}
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="mb-3 text-xl font-bold text-gray-800">{categoryName}</h2>
+        {categoryName !== 'Uncategorized' && (
+          <button
+            onClick={() => onDeleteCategory(categoryName)}
+            className="rw-button rw-button-small rw-button-red"
+            title={`Delete ${categoryName} category`}
+          >
+            Delete Category
+          </button>
+        )}
+      </div>
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         <ul className="min-h-[60px] space-y-2">
           {items.map((item) => (
@@ -351,11 +382,23 @@ const DroppableCategory = ({
 }
 export const Success = ({
   pantryItems: initialPantryItems,
-}: CellSuccessProps<PantryItemsQuery, PantryItemsQueryVariables>) => {
+  refetch: _refetch, // Now correctly prefixed in the Success component's props destructuring
+  error: _pantryQueryError, // Now correctly prefixed
+}: CellSuccessProps<PantryItemsQuery, PantryItemsQueryVariables> & { refetch: () => void; error?: ApolloError }) => {
   const [mealSuggestions, setMealSuggestions] = useState<string[]>([])
-  const [inputValue, setInputValue] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [inputValue, setInputValue] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [editingItem, setEditingItem] = useState<PantryItem | null>(null)
+
+  const allCategories = useMemo(() => {
+    const categories = new Map<string, PantryItem['category']>()
+    initialPantryItems.forEach((item) => {
+      if (item.category) {
+        categories.set(item.category.name, item.category)
+      }
+    })
+    return categories
+  }, [initialPantryItems])
 
   const [
     suggestMeals,
@@ -385,28 +428,34 @@ export const Success = ({
     }))
   ) 
 
-  const [activeId, setActiveId] = useState<string | null>(null) // DND active item ID
-  const [activeDragItem, setActiveDragItem] = useState<PantryItem | null>(null) // DND active drag item
+
 
   const [addPantryItemsToGroceryList, { loading: addItemsLoading }] = useMutation<
     AddPantryItemsToGroceryListMutation,
     { inputs: AddPantryItemToGroceryInput[] }
   >(ADD_PANTRY_ITEMS_TO_GROCERY_LIST_MUTATION, {
     onCompleted: (data) => {
-      const { addedCount, skippedCount, skippedItems } = data.addPantryItemsToGroceryList
+      // Always clear the selection after the mutation is complete.
+      setSelectedItemIds(new Set())
+
+      const { addedCount, skippedCount, skippedItems } =
+        data.addPantryItemsToGroceryList
+
+      // Provide feedback to the user based on the outcome.
       if (addedCount > 0) {
-        toast.success(`${addedCount} item(s) added to grocery list.`)
+        toast.success(`${addedCount} item(s) added to the grocery list.`)
       }
+
       if (skippedCount > 0) {
-        toast(
-          `${skippedCount} item(s) skipped (already on list or not 'Out of Stock'): ${skippedItems?.join(', ')}`,
-          { icon: 'ℹ️', duration: 6000 }
-        )
+        const message = `${skippedCount} item(s) were already on the list: ${skippedItems?.join(
+          ', '
+        )}`
+        toast(message, { icon: 'ℹ️', duration: 6000 })
       }
+
       if (addedCount === 0 && skippedCount === 0) {
         toast('No new items were added to the grocery list.', { icon: 'ℹ️' })
       }
-      setSelectedItemIds(new Set()) // Clear selection
     },
     onError: (error) => {
       toast.error(`Failed to add items: ${error.message}`)
@@ -452,7 +501,9 @@ export const Success = ({
       .map((item) => item.name)
 
     if (availableItems.length === 0) {
-      toast.error('No items in pantry are suitable for meal suggestions (must be In Stock or Low Stock).')
+      toast.error(
+          'No items in pantry are suitable for meal suggestions (must be In Stock or Low Stock).'
+        )
       setMealSuggestions([])
       return
     }
@@ -495,7 +546,7 @@ export const Success = ({
     const mutationInputs: AddPantryItemToGroceryInput[] = itemsToAdd.map(
       (item) => ({
         name: item.name,
-        category: item.category,
+        categoryId: item.category ? item.category.id : null,
         quantity: item.quantity,
       })
     )
@@ -521,22 +572,45 @@ export const Success = ({
     UpdatePantryItemOrdersMutationVariables
   >(UPDATE_PANTRY_ITEM_ORDERS_MUTATION, {
     onCompleted: () => {
-      toast.success('Pantry items reordered/moved')
+      toast.success('Pantry items reordered/moved');
     },
     onError: (error) => {
-      toast.error(`Error reordering items: ${error.message}`)
+      toast.error(`Error reordering items: ${error.message}`);
+    },
+    // No refetch here, optimistic update is sufficient
+  });
+
+  const [deleteCategory] = useMutation<
+    DeleteCategoryMutation,
+    DeleteCategoryMutationVariables
+  >(DELETE_CATEGORY_MUTATION, {
+    onCompleted: () => {
+      toast.success('Category deleted successfully.');
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete category: ${error.message}`);
     },
     refetchQueries: [{ query: QUERY }],
-  })
+  });
 
   const onDeleteClick = (id: number, name: string) => {
     if (editingItem?.id === id) {
-      setEditingItem(null)
+      setEditingItem(null);
     }
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
-      deletePantryItem({ variables: { id } })
+      deletePantryItem({ variables: { id } });
     }
-  }
+  };
+
+  const handleDeleteCategory = (categoryName: string) => {
+    if (
+      confirm(
+        `Are you sure you want to delete the "${categoryName}" category? This will also delete all items within it.`
+      )
+    ) {
+      deleteCategory({ variables: { id: allCategories.get(categoryName)?.id } });
+    }
+  };
 
   const handleEditClick = (item: PantryItem) => {
     setEditingItem(item)
@@ -559,172 +633,111 @@ export const Success = ({
     useSensor(KeyboardSensor, {})
   )
 
-  const handleDragStart = (event: DragEndEvent) => {
-    const { active } = event
-    if (active.data.current?.type === 'item') {
-      setActiveId(active.id.toString())
-    }
+  const handleDragStart = (_event: DragEndEvent) => {
+    // This function is a placeholder for any logic that needs to run
+    // when a drag operation begins, such as setting state for a visual
+    // drag overlay. Currently, no such logic is implemented.
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveId(null)
+    const { active, over } = event;
 
-    if (!over) return
-
-    const activeId = active.id.toString()
-    const overId = over.id.toString()
-
-    const activeItem = currentPantryItems.find(
-      (item) => item.id.toString() === activeId
-    )
-    if (!activeItem) return
-
-    const overIsCategory = over.data.current?.type === 'category'
-    const overIsItem = over.data.current?.type === 'item'
-
-    let targetCategoryKey: string | null | undefined
-
-    if (overIsCategory) {
-      targetCategoryKey = overId
-    } else if (overIsItem) {
-      const overItem = currentPantryItems.find(
-        (item) => item.id.toString() === overId
-      )
-      targetCategoryKey = overItem?.category || 'Uncategorized'
-    } else {
-      if (categories.includes(overId)) {
-        targetCategoryKey = overId
-      }
+    if (!over) {
+      return;
     }
 
-    if (targetCategoryKey === undefined) return
+    const activeId = active.id.toString();
+    const overId = over.id.toString();
 
-    const activeCategoryKey = activeItem.category || 'Uncategorized'
-    const newCategoryForDb =
-      targetCategoryKey === 'Uncategorized' ? null : targetCategoryKey
+    if (activeId === overId) {
+      return;
+    }
 
-    const changesToPersist: UpdatePantryItemOrderInput[] = []
+    _setCurrentPantryItems((currentItems) => {
+      const activeItem = currentItems.find((item) => item.id.toString() === activeId);
+      if (!activeItem) return currentItems;
 
-    if (activeCategoryKey !== targetCategoryKey) {
-      if (editingItem?.id === activeItem.id) {
-        toast.error('Cannot move an item while it is being edited.')
-        return
+      const overItem = currentItems.find((item) => item.id.toString() === overId);
+
+      let targetCategory: PantryItem['category'] | null | undefined = undefined;
+
+      if (over.data.current?.type === 'category') {
+        const categoryName = over.id.toString();
+        targetCategory = allCategories.get(categoryName);
+      } else if (over.data.current?.type === 'item' && overItem) {
+        targetCategory = overItem.category;
+      } else if (
+        over.data.current?.type === 'category-container' &&
+        over.id === 'Uncategorized'
+      ) {
+        targetCategory = null;
       }
 
-      let itemsInOldCatAfterMove: PantryItem[] = []
-      let itemsInNewCatAfterMove: PantryItem[] = []
+      if (typeof targetCategory === 'undefined') {
+        return currentItems;
+      }
 
-      _setCurrentPantryItems((prevItems) => {
-        const itemMoved = {
-          ...activeItem,
-          category: newCategoryForDb,
-          order: 0,
-        } 
-        const remainingItems = prevItems.filter((p) => p.id !== activeItem.id)
-
-        itemsInOldCatAfterMove = remainingItems
-          .filter((p) => (p.category || 'Uncategorized') === activeCategoryKey)
-          .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity))
-          .map((item, index) => ({ ...item, order: index })) 
-
-        itemsInNewCatAfterMove = [
-          ...remainingItems.filter(
-            (p) => (p.category || 'Uncategorized') === targetCategoryKey
-          ),
-          itemMoved,
-        ]
-          .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity))
-          .map((item, index) => ({ ...item, order: index })) 
-
-        const otherItems = remainingItems.filter(
-          (p) =>
-            (p.category || 'Uncategorized') !== activeCategoryKey &&
-            (p.category || 'Uncategorized') !== targetCategoryKey
-        )
-        return [
-          ...otherItems,
-          ...itemsInOldCatAfterMove,
-          ...itemsInNewCatAfterMove,
-        ]
-      })
-
-      const movedItemFinalOrder =
-        itemsInNewCatAfterMove.find((i) => i.id === activeItem.id)?.order ?? 0
-      changesToPersist.push({
-        id: activeItem.id,
-        category: newCategoryForDb,
-        order: movedItemFinalOrder,
-      })
-
-      itemsInOldCatAfterMove.forEach((item) => {
-        const originalItem = currentPantryItems.find((p) => p.id === item.id)
-        if (originalItem && originalItem.order !== item.order) {
-          changesToPersist.push({ id: item.id, order: item.order })
+      const itemsWithUpdatedCategory = currentItems.map((item) => {
+        if (item.id.toString() === activeId) {
+          return { ...item, category: targetCategory };
         }
-      })
+        return item;
+      });
 
-      itemsInNewCatAfterMove.forEach((item) => {
-        if (item.id === activeItem.id) return 
-        const originalItem = currentPantryItems.find((p) => p.id === item.id)
-        if (
-          originalItem &&
-          (originalItem.category || 'Uncategorized') === targetCategoryKey &&
-          originalItem.order !== item.order
-        ) {
-          changesToPersist.push({ id: item.id, order: item.order })
-        }
-      })
-    } else if (activeId !== overId) {
-      const itemsInSameCategory = currentPantryItems
-        .filter(
-          (item) => (item.category || 'Uncategorized') === activeCategoryKey
-        )
-        .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity))
-
-      const oldIndex = itemsInSameCategory.findIndex(
+      const oldIndex = itemsWithUpdatedCategory.findIndex(
         (item) => item.id.toString() === activeId
-      )
-      const newIndex = itemsInSameCategory.findIndex(
-        (item) => item.id.toString() === overId
-      )
-
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        const reorderedCategoryItems = arrayMove(
-          itemsInSameCategory,
-          oldIndex,
-          newIndex
-        ).map((item, index) => ({ ...item, order: index })) 
-
-        _setCurrentPantryItems((prevItems) => {
-          const otherItems = prevItems.filter(
-            (item) => (item.category || 'Uncategorized') !== activeCategoryKey
+      );
+      const newIndex = overItem
+        ? itemsWithUpdatedCategory.findIndex(
+            (item) => item.id.toString() === overId
           )
-          return [...otherItems, ...reorderedCategoryItems]
-        })
+        : -1;
 
-        reorderedCategoryItems.forEach((item) => {
-          const originalItemInFullList = initialPantryItems.find(
-            (p) => p.id === item.id
-          )
-          if (
-            originalItemInFullList &&
-            originalItemInFullList.order !== item.order
-          ) {
-            changesToPersist.push({ id: item.id, order: item.order })
-          }
-        })
+      let reorderedItems = itemsWithUpdatedCategory;
+      if (newIndex !== -1) {
+        reorderedItems = arrayMove(itemsWithUpdatedCategory, oldIndex, newIndex);
       }
-    }
 
-    if (changesToPersist.length > 0) {
-      updatePantryItemOrders({ variables: { inputs: changesToPersist } })
-    }
-  }
+      const changesToPersist: UpdatePantryItemOrderInput[] = [];
+      const categoriesToUpdate = new Set<string>();
+      const originalCategoryName = activeItem.category?.name || 'Uncategorized';
+      const newCategoryName = targetCategory?.name || 'Uncategorized';
+      categoriesToUpdate.add(originalCategoryName);
+      categoriesToUpdate.add(newCategoryName);
+
+      categoriesToUpdate.forEach((categoryName) => {
+        reorderedItems
+          .filter(
+            (item) => (item.category?.name || 'Uncategorized') === categoryName
+          )
+          .forEach((item, index) => {
+            const originalItem = currentItems.find((i) => i.id === item.id);
+            if (
+              originalItem &&
+              (originalItem.order !== index ||
+                (originalItem.category?.name || 'Uncategorized') !==
+                  (item.category?.name || 'Uncategorized'))
+            ) {
+              changesToPersist.push({
+                id: item.id,
+                order: index,
+                categoryId: item.category?.id,
+              });
+            }
+          });
+      });
+
+      if (changesToPersist.length > 0) {
+        updatePantryItemOrders({ variables: { inputs: changesToPersist } });
+      }
+
+      return reorderedItems;
+    });
+  };
 
   const groupedItems = filteredPantryItems.reduce(
     (acc, item) => {
-      const categoryKey = item.category || 'Uncategorized'
+      const categoryKey = item.category?.name || 'Uncategorized'
       if (!acc[categoryKey]) {
         acc[categoryKey] = []
       }
@@ -849,27 +862,12 @@ export const Success = ({
                 selectedItemIds={selectedItemIds}
                 onToggleSelectItem={handleToggleSelectItem}
                 searchTerm={searchTerm}
+                onDeleteCategory={handleDeleteCategory}
               />
             ))}
           </div>
         )}
-        <DragOverlay>
-          {activeDragItem ? (
-            <SortablePantryItem
-              item={activeDragItem}
-              isEditing={false}
-              onEditClick={() => {}}
-              onDeleteClick={() => {}}
-              onSaveEdit={() => {}}
-              onCancelEdit={() => {}}
-              isSelected={
-                activeDragItem ? selectedItemIds.has(activeDragItem.id) : false
-              }
-              onToggleSelectItem={handleToggleSelectItem} // Pass handler, though likely not used in overlay
-              isOverlay
-            />
-          ) : null}
-        </DragOverlay>
+
       </DndContext>
     </>
   )

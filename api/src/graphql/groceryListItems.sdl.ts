@@ -2,10 +2,12 @@ export const schema = gql`
   type GroceryListItem {
     id: Int!
     name: String!
-    category: String
     purchased: Boolean!
     createdAt: DateTime!
     updatedAt: DateTime!
+
+    categoryId: Int
+    category: Category
   }
 
   type Query {
@@ -15,19 +17,19 @@ export const schema = gql`
 
   input CreateGroceryListItemInput {
     name: String!
-    category: String
+    categoryId: Int
     purchased: Boolean
   }
 
   input AddPantryItemToGroceryInput {
     name: String!
-    category: String
+    categoryId: Int
     quantity: String # From pantry item, can be null
   }
 
   input UpdateGroceryListItemInput {
     name: String
-    category: String
+    categoryId: Int
     purchased: Boolean
   }
 
@@ -64,7 +66,7 @@ export const schema = gql`
     addPantryItemsToGroceryList(
       inputs: [AddPantryItemToGroceryInput!]!
     ): AddPantryItemsToGroceryResult! @requireAuth
-    deleteGroceryListItemsByCategory(category: String!): BatchDeleteResult!
+    deleteGroceryListItemsByCategoryId(categoryId: Int!): BatchDeleteResult!
       @requireAuth
   }
 `

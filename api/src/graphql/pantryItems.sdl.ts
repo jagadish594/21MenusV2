@@ -8,13 +8,15 @@ export const schema = gql`
   type PantryItem {
     id: Int!
     name: String!
-    category: String # Optional
     quantity: String
     notes: String
-    order: Int # New field
+    order: Int
     status: PantryItemStatus!
     createdAt: DateTime!
     updatedAt: DateTime!
+
+    categoryId: Int
+    category: Category
   }
 
   type Query {
@@ -24,7 +26,7 @@ export const schema = gql`
 
   input CreatePantryItemInput {
     name: String!
-    category: String
+    categoryId: Int
     order: Int
     quantity: String
     notes: String
@@ -33,7 +35,7 @@ export const schema = gql`
 
   input UpdatePantryItemInput {
     name: String
-    category: String
+    categoryId: Int
     quantity: String
     notes: String
     order: Int
@@ -42,7 +44,7 @@ export const schema = gql`
 
   input UpsertPantryItemFromGroceryInput {
     name: String!
-    category: String!
+    categoryId: Int!
     quantity: String
     notes: String
     # status is implicitly InStock when upserting from a purchased grocery item
@@ -51,7 +53,22 @@ export const schema = gql`
   input UpdatePantryItemOrderInput {
     id: Int!
     order: Int!
-    category: String # Optional, if category is changing
+    categoryId: Int # Optional, if category is changing
+  }
+
+  type ClearPantryPayload {
+    count: Int!
+    message: String!
+  }
+
+  input SyncGroceryItemToPantryInput {
+    groceryListItemId: Int!
+  }
+
+  type SyncPantryItemPayload {
+    pantryItem: PantryItem # The affected (created/updated) pantry item, or null
+    message: String!
+    groceryListItem: GroceryListItem! # The updated grocery list item
   }
 
   type Mutation {
@@ -65,5 +82,7 @@ export const schema = gql`
     upsertPantryItemFromGroceryItem(
       input: UpsertPantryItemFromGroceryInput!
     ): PantryItem! @requireAuth
+    clearPantry: ClearPantryPayload! @requireAuth
+    syncGroceryItemToPantry(input: SyncGroceryItemToPantryInput!): SyncPantryItemPayload! @requireAuth
   }
 `

@@ -272,14 +272,6 @@ const PlannerPage = () => {
     <>
       <MetaTags title="Meal Planner" description="Weekly Meal Planner page" />
 
-      <div className="mb-4">
-        <Link
-          to={routes.home()}
-          className="text-blue-500 hover:text-blue-700 hover:underline"
-        >
-          &larr; Back to Home
-        </Link>
-      </div>
 
       <div className="container mx-auto p-4">
         <MetaTags title="Meal Planner" description="Plan your weekly meals" />

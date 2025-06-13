@@ -1,6 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-import type { CreatePantryItemInput } from 'types/graphql'
+import type {
+  CreatePantryItemInput,
+  CategoriesQuery,
+  CategoriesQueryVariables,
+  CreateCategoryMutation,
+  CreateCategoryMutationVariables,
+} from 'types/graphql'
 
 import {
   Form,
@@ -11,23 +17,40 @@ import {
   Label,
   FieldError,
 } from '@redwoodjs/forms'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery, type TypedDocumentNode } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
-import { QUERY as PANTRY_ITEMS_QUERY } from 'src/components/PantryItemsCell/PantryItemsCell' // Import the query for refetching
-import { CATEGORIES, type Category } from 'src/lib/categories'
-import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage' // Import the grocery list query
+import { QUERY as PANTRY_ITEMS_QUERY } from 'src/components/PantryItemsCell/PantryItemsCell'
+import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage'
+
+const GET_CATEGORIES_QUERY: TypedDocumentNode<
+  CategoriesQuery,
+  CategoriesQueryVariables
+> = gql`
+  query CategoriesQuery {
+    categories {
+      id
+      name
+    }
+  }
+`
+
+const CREATE_CATEGORY_MUTATION: TypedDocumentNode<
+  CreateCategoryMutation,
+  CreateCategoryMutationVariables
+> = gql`
+  mutation CreateCategoryMutation($input: CreateCategoryInput!) {
+    createCategory(input: $input) {
+      id
+      name
+    }
+  }
+`
 
 const CREATE_PANTRY_ITEM_MUTATION = gql`
   mutation CreatePantryItemMutation($input: CreatePantryItemInput!) {
     createPantryItem(input: $input) {
-      id
-      name
-      category
-      quantity
-      notes
-      createdAt
-      updatedAt
+      id # Minimal needed for cache updates, full item refetched by PANTRY_ITEMS_QUERY
     }
   }
 `
@@ -37,38 +60,80 @@ interface AddPantryItemFormProps {
 }
 
 const AddPantryItemForm = ({ onSuccess }: AddPantryItemFormProps) => {
-  const [createPantryItem, { loading, error }] = useMutation<
-    { createPantryItem: { id: number } }, // More specific type for mutation result
+  const { data: categoriesData, loading: categoriesLoading, refetch: refetchCategories } = useQuery(GET_CATEGORIES_QUERY)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(
+    undefined
+  )
+  const [newCategoryName, setNewCategoryName] = useState('')
+
+  useEffect(() => {
+    // Pre-select the first category if available and none is selected
+    if (categoriesData?.categories?.length && selectedCategoryId === undefined) {
+      setSelectedCategoryId(categoriesData.categories[0].id)
+    }
+  }, [categoriesData, selectedCategoryId])
+
+  const [
+    createPantryItem,
+    { loading: createItemLoading, error: createItemError },
+  ] = useMutation<
+    { createPantryItem: { id: number } },
     { input: CreatePantryItemInput }
   >(CREATE_PANTRY_ITEM_MUTATION, {
-    onCompleted: (data) => {
+    onCompleted: () => {
       toast.success('Pantry item added!')
       if (onSuccess) {
         onSuccess()
       }
-      // Optionally, reset form fields here if not using Redwood Form's built-in reset
+      // Form fields are typically reset by Redwood Form's onSubmit handling or manually if needed
     },
     onError: (error) => {
       toast.error(`Error adding item: ${error.message}`)
     },
     refetchQueries: [
-      { query: PANTRY_ITEMS_QUERY },
-      { query: GET_GROCERY_LIST_ITEMS_QUERY },
+      { query: PANTRY_ITEMS_QUERY }, // Refetches pantry items on current page
+      { query: GET_GROCERY_LIST_ITEMS_QUERY }, // Refetches grocery list items
     ],
+    // Optimistic updates or direct cache manipulation could be added here for smoother UX
   })
 
-  const [category, setCategory] = useState<Category>(CATEGORIES[0])
+  const [
+    createCategory,
+    { loading: createCategoryLoading, error: createCategoryError },
+  ] = useMutation(CREATE_CATEGORY_MUTATION, {
+    onCompleted: (data) => {
+      toast.success(`Category "${data.createCategory.name}" created!`)
+      refetchCategories() // Refetch categories to update the dropdown
+      setSelectedCategoryId(data.createCategory.id) // Auto-select the new category
+      setNewCategoryName('') // Clear the input field
+    },
+    onError: (error) => {
+      // The backend throws UserInputError for duplicates, which is caught here.
+      toast.error(`Error creating category: ${error.message}`)
+    },
+  })
 
-  const onSubmit = (data: {
+  const handleAddNewCategory = () => {
+    if (!newCategoryName.trim()) {
+      toast.error('Please enter a category name.')
+      return
+    }
+    createCategory({ variables: { input: { name: newCategoryName.trim() } } })
+  }
+
+  const onSubmitPantryItem = (data: {
     name: string
     quantity?: string
     notes?: string
   }) => {
-    // Combine form data with the controlled category state
+    if (selectedCategoryId === undefined) {
+      toast.error('Please select a category.')
+      return
+    }
     const input: CreatePantryItemInput = {
       name: data.name,
-      category: category,
-      quantity: data.quantity || null, // Ensure optional fields are null if empty
+      categoryId: selectedCategoryId,
+      quantity: data.quantity || null,
       notes: data.notes || null,
     }
     createPantryItem({ variables: { input } })
@@ -79,7 +144,7 @@ const AddPantryItemForm = ({ onSuccess }: AddPantryItemFormProps) => {
       <h2 className="mb-4 text-xl font-semibold text-gray-700">
         Add New Pantry Item
       </h2>
-      <Form onSubmit={onSubmit} className="space-y-4" error={error}>
+      <Form onSubmit={onSubmitPantryItem} className="space-y-4" error={createItemError}>
         <div>
           <Label
             name="name"
@@ -89,10 +154,10 @@ const AddPantryItemForm = ({ onSuccess }: AddPantryItemFormProps) => {
           </Label>
           <TextField
             name="name"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            className="rw-input mt-1"
             validation={{ required: true }}
           />
-          <FieldError name="name" className="mt-1 text-xs text-red-600" />
+          <FieldError name="name" className="rw-field-error mt-1" />
         </div>
 
         <div>
@@ -102,19 +167,56 @@ const AddPantryItemForm = ({ onSuccess }: AddPantryItemFormProps) => {
           >
             Category
           </Label>
-          <SelectField
-            name="category"
-            value={category} // Controlled component
-            onChange={(e) => setCategory(e.target.value as Category)}
-            className="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base shadow-sm focus:border-teal-500 focus:outline-none focus:ring-teal-500 sm:text-sm"
+          <div className="flex items-center space-x-2">
+            <SelectField
+              name="categoryId"
+              value={selectedCategoryId?.toString() ?? ''}
+              onChange={(e) => setSelectedCategoryId(parseInt(e.target.value))}
+              className="rw-input mt-1 flex-grow"
+              disabled={categoriesLoading}
+              validation={{ valueAsNumber: true, required: true }}
+            >
+              {categoriesLoading && <option>Loading categories...</option>}
+              {categoriesData?.categories?.map((cat) => (
+                <option key={cat.id} value={cat.id.toString()}>
+                  {cat.name}
+                </option>
+              ))}
+            </SelectField>
+          </div>
+          <FieldError name="categoryId" className="rw-field-error mt-1" />
+        </div>
+
+        <div className="mt-2 space-y-2 rounded-md border border-gray-200 p-3">
+          <Label
+            name="newCategoryName"
+            className="mb-1 block text-sm font-medium text-gray-500"
           >
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </SelectField>
-          {/* FieldError for category is not strictly needed as it's a controlled select with a default */}
+            Or Add New Category
+          </Label>
+          <div className="flex items-center space-x-2">
+            <TextField
+              name="newCategoryName"
+              placeholder="Enter new category name"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              className="rw-input mt-1 flex-grow"
+              disabled={createCategoryLoading}
+            />
+            <button
+              type="button" // Important to prevent form submission
+              onClick={handleAddNewCategory}
+              disabled={createCategoryLoading || !newCategoryName.trim()}
+              className="rw-button rw-button-small rw-button-green mt-1 whitespace-nowrap"
+            >
+              {createCategoryLoading ? 'Adding...' : 'Add Category'}
+            </button>
+          </div>
+          {createCategoryError && (
+            <p className="rw-field-error mt-1">
+              {createCategoryError.message}
+            </p>
+          )}
         </div>
 
         <div>
@@ -126,9 +228,9 @@ const AddPantryItemForm = ({ onSuccess }: AddPantryItemFormProps) => {
           </Label>
           <TextField
             name="quantity"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            className="rw-input mt-1"
           />
-          <FieldError name="quantity" className="mt-1 text-xs text-red-600" />
+          <FieldError name="quantity" className="rw-field-error mt-1" />
         </div>
 
         <div>
@@ -140,24 +242,23 @@ const AddPantryItemForm = ({ onSuccess }: AddPantryItemFormProps) => {
           </Label>
           <TextAreaField
             name="notes"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+            className="rw-input mt-1"
             rows={3}
           />
-          <FieldError name="notes" className="mt-1 text-xs text-red-600" />
+          <FieldError name="notes" className="rw-field-error mt-1" />
         </div>
 
         <Submit
-          disabled={loading}
-          className="w-full rounded-md bg-teal-600 px-4 py-2 text-white transition-colors hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 sm:w-auto"
+          disabled={createItemLoading || createCategoryLoading}
+          className="rw-button rw-button-blue w-full sm:w-auto"
         >
-          {loading ? 'Adding...' : 'Add Item'}
+          {createItemLoading ? 'Adding Item...' : 'Add Pantry Item'}
         </Submit>
-        {/* Display a general form error if the mutation error is not field-specific */}
-        {error &&
-          !error.graphQLErrors?.some(
+        {createItemError &&
+          !createItemError.graphQLErrors?.some(
             (err) => err.extensions?.code === 'BAD_USER_INPUT'
           ) && (
-            <p className="mt-2 text-xs text-red-600">Error: {error.message}</p>
+            <p className="rw-field-error mt-2">Error: {createItemError.message}</p>
           )}
       </Form>
     </div>

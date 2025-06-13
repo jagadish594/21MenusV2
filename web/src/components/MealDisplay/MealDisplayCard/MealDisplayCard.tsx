@@ -15,18 +15,11 @@ import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { useMealQuery } from 'src/contexts/MealQueryContext'
+import {
+  CATEGORY_NAME_TO_ID_MAP,
+  type CategoryName as Category, // Using CategoryName as Category for compatibility
+} from 'src/lib/categories'
 import { GET_GROCERY_LIST_ITEMS_QUERY } from 'src/pages/GroceryListPage/GroceryListPage'
-
-// Define categories consistent with GroceryListPage
-export type Category =
-  | 'Produce'
-  | 'Dairy'
-  | 'Meat & Seafood'
-  | 'Pantry'
-  | 'Frozen'
-  | 'Beverages'
-  | 'Condiments/Spices'
-  | 'Other'
 
 const keywordCategoryMap: Partial<Record<string, Category>> = {
   // Produce
@@ -81,43 +74,6 @@ const keywordCategoryMap: Partial<Record<string, Category>> = {
   sausage: 'Meat & Seafood',
   mutton: 'Meat & Seafood',
   eggs: 'Meat & Seafood',
-  // Pantry
-  bread: 'Pantry',
-  pasta: 'Pantry',
-  rice: 'Pantry',
-  cereal: 'Pantry',
-  flour: 'Pantry',
-  sugar: 'Pantry',
-  oil: 'Pantry',
-  vinegar: 'Pantry',
-  salt: 'Pantry',
-  pepper: 'Pantry', // 'pepper' (spice) vs 'bell pepper' (produce)
-  beans: 'Pantry',
-  lentils: 'Pantry',
-  nuts: 'Pantry',
-  almonds: 'Pantry',
-  walnuts: 'Pantry',
-  oats: 'Pantry',
-  honey: 'Pantry',
-  syrup: 'Pantry',
-  jam: 'Pantry',
-  'peanut butter': 'Pantry',
-  'soy sauce': 'Pantry',
-  ketchup: 'Pantry',
-  mustard: 'Pantry',
-  mayonnaise: 'Pantry',
-  'hot sauce': 'Pantry',
-  broth: 'Pantry',
-  stock: 'Pantry',
-  'canned tomatoes': 'Pantry',
-  'canned beans': 'Pantry',
-  breadcrumbs: 'Pantry',
-  quinoa: 'Pantry',
-  'wheat bread': 'Pantry',
-  'flour tortillas': 'Pantry',
-  'baking powder': 'Pantry',
-  'baking soda': 'Pantry',
-  'brown sugar': 'Pantry',
   // Condiments/Spices
   'curry powder': 'Condiments/Spices',
   'coriander powder': 'Condiments/Spices',
@@ -430,7 +386,8 @@ export const MealDisplayCard: React.FC<MealDisplayCardProps> = ({
 
     const inputs = ingredientsToAddArray.map((ingredientName) => ({
       name: ingredientName,
-      category: getCategoryForIngredient(ingredientName),
+      categoryId:
+        CATEGORY_NAME_TO_ID_MAP[getCategoryForIngredient(ingredientName)],
       purchased: false,
     }))
 

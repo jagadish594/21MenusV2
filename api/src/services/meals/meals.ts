@@ -29,9 +29,32 @@ interface MealDetailsFromLLM {
 export const getMealDetails = async ({ mealName }: { mealName: string }) => {
   console.log(`[getMealDetails Service] Received request for meal: ${mealName}`)
 
-  // Temporarily hardcoding for local development as process.env.REDWOOD_API_URL was undefined.
-  // API port is 8912. Functions are served relative to the API server root.
-  const functionEndpoint = 'http://localhost:8912/getMealDetails'
+  let baseUrl
+  if (process.env.NODE_ENV === 'development') {
+    // In development, we know the API server is on port 8912 from redwood.toml
+    baseUrl = 'http://localhost:8912'
+  } else {
+    // In production, we rely on an environment variable for the public API URL.
+    // This must be set in your deployment environment (e.g., Netlify, Vercel).
+    baseUrl = process.env.API_URL
+  }
+
+  if (!baseUrl) {
+    const errorMessage =
+      process.env.NODE_ENV === 'development'
+        ? 'Could not determine base URL in development.'
+        : 'API_URL environment variable is not set in production.'
+
+    console.error(`[getMealDetails Service] ${errorMessage}`)
+    return JSON.stringify({
+      error: 'Internal service configuration error: API URL is not configured.',
+      mealName: mealName,
+      ingredients: [],
+    })
+  }
+
+  // The function is served at the root of the API server, not under /api
+  const functionEndpoint = `${baseUrl}/getMealDetails`
   const url = new URL(functionEndpoint)
   url.searchParams.append('mealName', mealName)
 

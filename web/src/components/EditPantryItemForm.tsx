@@ -18,7 +18,7 @@ import {
 import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
-import { CATEGORIES, type Category } from 'src/lib/categories'
+import { CATEGORIES_WITH_IDS } from 'src/lib/categories'
 
 const PANTRY_ITEM_STATUSES: PantryItemStatus[] = ['InStock', 'OutOfStock']
 
@@ -27,7 +27,10 @@ const UPDATE_PANTRY_ITEM_MUTATION = gql`
     updatePantryItem(id: $id, input: $input) {
       id
       name
-      category
+      category {
+        id
+        name
+      }
       quantity
       notes
       status
@@ -61,14 +64,38 @@ const EditPantryItemForm = ({
     }
   )
 
-  const onSubmit = (data: UpdatePantryItemInput) => {
-    // Ensure quantity is a number if provided, otherwise Prisma might complain
-    const inputData: UpdatePantryItemInput = {
-      ...data,
-      quantity: data.quantity === '' ? null : data.quantity,
-      status: data.status as PantryItemStatus, // Ensure status is correctly typed
+  // const onSubmit = (data: UpdatePantryItemInput) => {
+  //   // Ensure quantity is a number if provided, otherwise Prisma might complain
+  //   const inputData: UpdatePantryItemInput = {
+  //     ...data,
+  //     quantity: (data.quantity === null || data.quantity === undefined) ? null : String(data.quantity),
+  //     status: data.status as PantryItemStatus, // Ensure status is correctly typed
+  //   }
+  //   updatePantryItem({ variables: { id: pantryItem.id, input: inputData } })
+  // }
+  const onSubmit = (data: {
+    name: string
+    categoryId: string
+    quantity: string
+    status: PantryItemStatus
+    notes: string
+  }) => {
+    const input: UpdatePantryItemInput = {
+      name: data.name,
+      notes: data.notes,
+      status: data.status,
+      quantity: data.quantity ? String(data.quantity) : null,
+      categoryId: data.categoryId ? parseInt(data.categoryId, 10) : null,
     }
-    updatePantryItem({ variables: { id: pantryItem.id, input: inputData } })
+
+    // If parsing results in NaN (e.g., empty string for categoryId), set to null
+    if (isNaN(input.categoryId)) {
+      input.categoryId = null
+    }
+
+    updatePantryItem({
+      variables: { id: pantryItem.id, input },
+    })
   }
 
   return (
@@ -88,36 +115,33 @@ const EditPantryItemForm = ({
             defaultValue={pantryItem.name}
             className="rw-input"
             errorClassName="rw-input rw-input-error"
-            validation={{ required: true }}
+            required={true}
           />
           <FieldError name="name" className="rw-field-error" />
         </div>
 
         <div>
           <Label
-            name="category"
+            name="categoryId"
             className="rw-label"
             errorClassName="rw-label rw-label-error"
           >
             Category
           </Label>
           <SelectField
-            name="category"
-            defaultValue={pantryItem.category}
+            name="categoryId"
+            defaultValue={pantryItem.category?.id}
             className="rw-input"
             errorClassName="rw-input rw-input-error"
-            validation={{ required: true }}
           >
-            <option value="" disabled>
-              Select a category
-            </option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
+            <option value="">Select a category</option>
+            {CATEGORIES_WITH_IDS.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
               </option>
             ))}
           </SelectField>
-          <FieldError name="category" className="rw-field-error" />
+          <FieldError name="categoryId" className="rw-field-error" />
         </div>
 
         <div>
@@ -150,7 +174,7 @@ const EditPantryItemForm = ({
             defaultValue={pantryItem.status}
             className="rw-input"
             errorClassName="rw-input rw-input-error"
-            validation={{ required: true }}
+            required={true}
           >
             {PANTRY_ITEM_STATUSES.map((status) => (
               <option key={status} value={status}>
