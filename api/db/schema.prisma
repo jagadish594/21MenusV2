@@ -53,3 +53,14 @@ model PantryItem {
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 }
+
+model User {
+  id                  Int       @id @default(autoincrement())
+  email               String    @unique
+  hashedPassword      String
+  salt                String
+  resetToken          String?
+  resetTokenExpiresAt DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
